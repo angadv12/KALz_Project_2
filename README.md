@@ -1,11 +1,50 @@
-# DS4002 Data Science Projects - Template
+# KALz Project 2
 
-This repository serves as a template for DS4002 student research project repositories. When creating your project repository, you may use this template to establish the required folder structure.
+## 1. Software and Platform
+- All packages installed located in `requirements.txt`
+> Run `pip install -r requirements.txt` to install all at once
+- Used Mac & Windows during development
 
-Once your repository is created, replace this README.md file with your project-specific README, following the specifications provided on Canvas.
+## 2. Repository Map
+```
+[Project Folder]/
+├── data/
+│   ├── sea_ice_data_clean.csv
+├── output/
+│   ├── [VARIOUS IMAGES]
+│   ├──  ...
+│   ├── [VARIOUS IMAGES]
+│   ├── [VARIOUS .CSV FILES]
+│   ├──  ...
+│   └── [VARIOUS .CSV FILES]
+├── scripts/
+│   ├── MI2_EDA.py
+├── venv/
+├── .gitignore
+├── LICENSE.md
+├── README.md
+└── requirements.txt
+```
+> [!NOTE]
+> The models and venv/ were git ignored due to size; create them using directions below.
+> You can delete everything in OUTPUT/ and recreate using the scripts if you would like.
 
-The purpose and expected contents of the scripts, output, and data folders are described in the MI3 rubric (available on Canvas).
+## 3. How to reproduce our results
+> [!NOTE]
+> Ensure python is set up on your system.
+> Run ALL terminal commands from the root directory.
+> Use `python3` instead of `python` if commands aren't running.
 
-Remember to include a LICENSE.md file in your repository.
+### Create a virtual environment and install packages
+Virtual environments isolate your packages to your current environment \
+In your terminal:
+- Create environment: `python -m venv venv`
+- Activate it:
+	- On macOS: `source venv/bin/activate`
+	- On Windows: `source venv/Scripts/activate`
+### Run python scripts
+In your terminal:
+- add here
 
-**Before submitting, review your repository to ensure its organization and contents meet the project specifications. You will submit the URL of your repository on Canvas.**
+## 4. References
+- add here
