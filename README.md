@@ -47,4 +47,7 @@ In your terminal:
 - add here
 
 ## 4. References
-- add here
+[1]“Arctic sea ice maximum: Crisis as ice melts and risks rise - WWF Arctic,” WWF Arctic, Mar. 28, 2025. https://www.arcticwwf.org/newsroom/features/arctic-sea-ice-maximum-crisis-as-ice-melts-and-risks-rise/
+‌[2] C. Grewcoe, “Time-Series Analysis: What Is It and How to Use It,” Timescale Blog, Mar. 12, 2024. https://www.tigerdata.com/blog/time-series-analysis-what-is-it-how-to-use-it 
+[3] R. Lindsey and M. Scott, “Climate Change: Arctic Sea Ice Summer Minimum | NOAA Climate.gov,” www.climate.gov, Oct. 18, 2022. https://www.climate.gov/news-features/understanding-climate/climate-change-arctic-sea-ice-summer-minimum
+[4]“Sea Ice Index, Version 4 | National Snow and Ice Data Center,” Nsidc.org, Mar. 2021, doi: https://doi.org/10.7265/a98x-0f50.
