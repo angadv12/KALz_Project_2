@@ -1,0 +1,709 @@
+---
+title: "DS4002Project2Code"
+author: "Kendall Freese"
+date: "2026-03-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load data
+```{r}
+sea_ice_data<-read.csv("~kfreese/Desktop/DS 4002/Project 2/Code/sea_ice_data_clean.csv")
+head(sea_ice_data)
+View(sea_ice_data)
+```
+
+# Load packages
+```{r}
+library(dplyr)      # for data manipulation
+library(ggplot2)    # for plotting
+library(zoo)        # for rolling standard deviation
+library(forecast)   # for ARIMA modeling and forecasting
+library(tseries)    # for the ADF stationarity test
+library(lubridate)  # for working with dates
+```
+
+# 1: Data Cleaning
+```{r}
+# Read in the cleaned CSV file
+sea_ice <- read.csv("sea_ice_data_clean.csv", stringsAsFactors = FALSE)
+
+# View the first few rows
+head(sea_ice)
+
+# View the structure of the dataset
+str(sea_ice)
+
+# Check dimensions of the dataset
+dim(sea_ice)
+
+# Check column names
+names(sea_ice)
+
+# Remove rows with invalid placeholder values if any still remain
+sea_ice <- sea_ice %>%
+  filter(extent != -9999, area != -9999)
+
+# Check for missing values in each column
+colSums(is.na(sea_ice))
+
+# Check for duplicate rows
+sum(duplicated(sea_ice))
+
+# Remove duplicate rows if any exist
+sea_ice <- sea_ice %>%
+  distinct()
+
+# Keep only rows with nonnegative extent values
+sea_ice <- sea_ice %>%
+  filter(extent >= 0)
+
+# Rename month column from "mo" to "month" for readability
+sea_ice <- sea_ice %>%
+  rename(month = mo)
+
+# Create a proper date variable using year, month, and day = 1
+sea_ice <- sea_ice %>%
+  mutate(date = as.Date(paste(year, month, 1, sep = "-")))
+
+# Sort the data chronologically
+sea_ice <- sea_ice %>%
+  arrange(date)
+
+# Create a time index variable from 1 to number of rows
+sea_ice <- sea_ice %>%
+  mutate(t = 1:n())
+
+# Create a decade variable
+sea_ice <- sea_ice %>%
+  mutate(decade = floor(year / 10) * 10)
+
+# Verify the cleaned data
+head(sea_ice)
+tail(sea_ice)
+```
+
+Sea ice area = total region covered by ice. 
+
+Extent = total region with at least 15% sea ice cover. NSIDC reports extent. 
+
+# 2: Descriptive Analysis
+```{r}
+# Overall summary statistics for extent
+summary(sea_ice$extent)
+sd(sea_ice$extent)
+
+# Summary statistics by decade
+decade_summary <- sea_ice %>%
+  group_by(decade) %>%
+  summarise(
+    mean_extent   = mean(extent, na.rm = TRUE),
+    median_extent = median(extent, na.rm = TRUE),
+    min_extent    = min(extent, na.rm = TRUE),
+    max_extent    = max(extent, na.rm = TRUE),
+    sd_extent     = sd(extent, na.rm = TRUE),
+    n             = n()
+  )
+
+print(decade_summary)
+
+# Summary statistics by month
+month_summary <- sea_ice %>%
+  group_by(month) %>%
+  summarise(
+    mean_extent   = mean(extent, na.rm = TRUE),
+    median_extent = median(extent, na.rm = TRUE),
+    min_extent    = min(extent, na.rm = TRUE),
+    max_extent    = max(extent, na.rm = TRUE),
+    sd_extent     = sd(extent, na.rm = TRUE),
+    n             = n()
+  )
+
+print(month_summary)
+
+# Create annual average extent
+annual_extent <- sea_ice %>%
+  group_by(year) %>%
+  summarise(
+    n_months = n(),
+    annual_extent = mean(extent, na.rm = TRUE)
+  ) %>%
+  filter(n_months == 12)
+
+# Create September-only dataset
+sept_data <- sea_ice %>%
+  filter(month == 9) %>%
+  arrange(year)
+
+# Create March-only dataset
+march_data <- sea_ice %>%
+  filter(month == 3) %>%
+  arrange(year)
+
+# Plot 1: Monthly sea ice extent over time
+ggplot(sea_ice, aes(x = date, y = extent)) +
+  geom_line() +
+  labs(
+    title = "Monthly Arctic Sea Ice Extent Over Time",
+    x = "Date",
+    y = "Extent (million sq km)"
+  ) +
+  theme_minimal()
+
+# Plot 2: Annual average sea ice extent over time
+ggplot(annual_extent, aes(x = year, y = annual_extent)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Annual Average Arctic Sea Ice Extent Over Time",
+    x = "Year",
+    y = "Annual Average Extent (million sq km)"
+  ) +
+  theme_minimal()
+
+# Plot 3: September sea ice extent over time
+ggplot(sept_data, aes(x = year, y = extent)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "September Arctic Sea Ice Extent Over Time",
+    x = "Year",
+    y = "September Extent (million sq km)"
+  ) +
+  theme_minimal()
+
+# Plot 4: March sea ice extent over time
+ggplot(march_data, aes(x = year, y = extent)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "March Arctic Sea Ice Extent Over Time",
+    x = "Year",
+    y = "March Extent (million sq km)"
+  ) +
+  theme_minimal()
+
+# Plot 5: Average extent by month
+ggplot(month_summary, aes(x = factor(month), y = mean_extent)) +
+  geom_col() +
+  labs(
+    title = "Average Arctic Sea Ice Extent by Month",
+    x = "Month",
+    y = "Average Extent (million sq km)"
+  ) +
+  theme_minimal()
+```
+
+We can see there is a strong yearly seasonal cycle, a clear downward shift in the cycle over time, and large losses in late summer and early fall. Sea ice grows substantially in the winter, thus March has high levels, but in summer ice melts leading to September's ice falls faster. We will focus on September for forecasting near-zero conditions. 
+
+
+# 3: Linear Trend Analysis
+```{r}
+# Fit a linear model using annual average extent over time
+linear_trend <- lm(annual_extent ~ year, data = annual_extent)
+
+# Print model summary
+summary(linear_trend)
+
+# Extract slope coefficient
+linear_slope <- coef(linear_trend)["year"]
+
+# Calculate decline per decade
+decline_per_decade <- linear_slope * 10
+
+# Print decline per decade
+decline_per_decade
+
+# Plot annual extent with fitted linear trend line
+ggplot(annual_extent, aes(x = year, y = annual_extent)) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Linear Trend in Annual Arctic Sea Ice Extent",
+    x = "Year",
+    y = "Annual Average Extent (million sq km)"
+  ) +
+  theme_minimal()
+```
+
+Annual extent = 113.091706 - 0.050847*year
+
+Slope estimate: -0.050847 million sq km per year
+
+Translates to -0.5084658 million sq km per decade
+
+Arctic sea ice extent has declined by approximately 0.508 million squares kilometers per decade on average. The decline is highly significant with a p-value < 0.05, indicating strong evidence that Arctic sea ice is decreasing over time. 
+
+63% of the variation in annual Arctic sea ice extent is explained by time alone (looking at R-squared). 
+
+The plot shows a clear downward trend over time with some year-to-year variability. Recent values are generally lower than earlier decades. 
+
+# 4: Seasonal Difference Analysis
+```{r}
+# Fit a linear model for September extent over time
+sept_linear <- lm(extent ~ year, data = sept_data)
+
+# Print both summaries
+summary(sept_linear)
+
+#  Extract both slopes
+sept_slope  <- coef(sept_linear)["year"]
+```
+
+Here we see that September sea ice is declining by 0.76 million sq km per decade, or 0.076 per year. This is significant with a p-value < 0.05 and R-squared of 0.8. 
+
+```{r}
+# Fit a linear model for March extent over time
+march_linear <- lm(extent ~ year, data = march_data)
+
+# Print both summaries
+summary(march_linear)
+
+# Extract both slopes
+march_slope <- coef(march_linear)["year"]
+march_slope
+
+# Compare slopes
+slope_difference <- sept_slope - march_slope
+slope_difference
+
+# Create a combined March vs September plot
+march_sept_plot <- bind_rows(
+  march_data %>% mutate(season_group = "March"),
+  sept_data %>% mutate(season_group = "September")
+)
+
+ggplot(march_sept_plot, aes(x = year, y = extent, color = season_group)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "March vs September Arctic Sea Ice Extent",
+    x = "Year",
+    y = "Extent (million sq km)",
+    color = "Month"
+  ) +
+  theme_minimal()
+slope_difference
+```
+
+The march slope is -0.0380 per year and -0.38 million sq km per decade with a significant p-value and R-squared of 0.8. 
+
+Overall, September decline is much steeper than March decline, it is declining about 2x as fast as March. The Arctic is losing ice much faster during the summer melt season. We see that there is a 0.03805042 difference between the September and march slopes, meaning September sea ice is declining 0.038 million sq km per year faster than March or 0.38 million sq km per decade. Thus, there is a large seasonal difference in this data as ice loss is concentrated in the summer. 
+
+
+# 5: Acceleration Test w/ Quadratic Model
+```{r}
+# Fit a quadratic model using annual average extent
+quadratic_trend <- lm(annual_extent ~ year + I(year^2), data = annual_extent)
+
+# Print model summary
+summary(quadratic_trend)
+
+# Compare linear and quadratic models using AIC and BIC
+AIC(linear_trend, quadratic_trend)
+BIC(linear_trend, quadratic_trend)
+
+# Plot annual extent with quadratic fit
+ggplot(annual_extent, aes(x = year, y = annual_extent)) +
+  geom_point() +
+  geom_line() +
+  stat_smooth(method = "lm", formula = y ~ x + I(x^2), se = TRUE) +
+  labs(
+    title = "Quadratic Trend in Annual Arctic Sea Ice Extent",
+    x = "Year",
+    y = "Annual Average Extent (million sq km)"
+  ) +
+  theme_minimal()
+```
+
+The quadratic model: extent = $\beta0$
+
+The $\beta2$ term tells us if the trend is accelerating or decelerating. We see that the year coefficient has a value of -0.06532 and year^2 coefficient has a value of 0.000003615, both of which are statistically significant. The linear coefficient confirms that there is an overall decline of sea ice extent, the quadratic coefficient is positive and thus means that the decline is slowing down over time (not accelerating). 
+
+Looking at AIC and BIC, we see that the quadratic fits slightly better than the linear model. With the plot, we can see that the declining is slowly slightly with earlier years having a steeper decline and later years having a flatter trend. 
+
+
+# 6: Volatility Analysis
+```{r}
+# Standard deviation of extent by decade
+decade_volatility <- sea_ice %>%
+  group_by(decade) %>%
+  summarise(
+    sd_extent = sd(extent, na.rm = TRUE)
+  )
+
+print(decade_volatility)
+
+# Plot decade standard deviation
+ggplot(decade_volatility, aes(x = factor(decade), y = sd_extent)) +
+  geom_col() +
+  labs(
+    title = "Sea Ice Extent Volatility by Decade",
+    x = "Decade",
+    y = "Standard Deviation of Extent"
+  ) +
+  theme_minimal()
+
+# Compute 10-year rolling standard deviation using annual averages
+annual_extent <- annual_extent %>%
+  arrange(year) %>%
+  mutate(
+    rolling_sd_10yr = rollapply(
+      annual_extent,
+      width = 10,
+      FUN = sd,
+      align = "right",
+      fill = NA
+    )
+  )
+
+# Plot rolling 10-year standard deviation
+ggplot(annual_extent, aes(x = year, y = rolling_sd_10yr)) +
+  geom_line() +
+  labs(
+    title = "10-Year Rolling Standard Deviation of Annual Sea Ice Extent",
+    x = "Year",
+    y = "Rolling SD"
+  ) +
+  theme_minimal()
+```
+We see that volatility was fairly stable from the 1970s-1990s. Volatility began to increase in the 2000s and the highest variability occurs in the 2010s-2020s. Sea ice is declining and is becoming more unpredictable and variable year-to-year. Modern Arctic sea ice is more volatile than in earlier decades. There was a huge spike in the rolling SD around 2006-2012. This suggests more extreme events and greater uncertainty in future ice levels. 
+
+# 7: Prep Dataset for Forecasting
+```{r}
+# Use September extent only for forecasting
+forecast_data <- sept_data %>%
+  select(year, extent) %>%
+  arrange(year)
+
+# Create time series object for September extent
+# (Frequency = 1 because using yearly September data)
+sept_ts <- ts(forecast_data$extent, start = min(forecast_data$year), frequency = 1)
+
+# Plot September time series
+plot(sept_ts, main = "September Arctic Sea Ice Extent Time Series", ylab = "Extent", xlab = "Year")
+
+# Run Augmented Dickey-Fuller test on the original September series
+adf_original <- adf.test(sept_ts)
+adf_original
+
+# Difference the series once if nonstationary
+sept_ts_diff <- diff(sept_ts)
+
+# Run the ADF test on the differenced series
+adf_diff <- adf.test(sept_ts_diff)
+adf_diff
+
+# Plot the differenced series
+plot(sept_ts_diff, main = "Differenced September Sea Ice Extent", ylab = "Differenced Extent", xlab = "Year")
+```
+
+From the non-differenced plot we see strong year-to-year variability and the ADF test concludes that the series is non-stationary, thus we cannot model this directly with ARIMA yet. 
+
+We apply a first difference to the September data to remove the trend and the ADF concludes that the data is now stationary. We now have data that captures year-to-year changes and is suitable for ARIMA modeling. We chose September data as it represents the annual minimum after summer melting, is most sensitive to climate change, and is best for forecasting near-zero.
+
+# 8: Chronological Train/Test Split
+```{r}
+# Create training data from 1979 to 2010
+train_data <- forecast_data %>%
+  filter(year >= 1979 & year <= 2010)
+
+# Create testing data from 2011 onward
+test_data <- forecast_data %>%
+  filter(year >= 2011)
+
+# Check sizes of train and test sets
+nrow(train_data)
+nrow(test_data)
+
+# Create time series objects for training and testing
+train_ts <- ts(train_data$extent, start = min(train_data$year), frequency = 1)
+test_ts  <- ts(test_data$extent,  start = min(test_data$year),  frequency = 1)
+```
+
+The dataset was split chronologically into a training set (1979-2010, where n = 32) and a testing set (2011-present, where n = 15). This ensures that model evaluation reflects the true out-of-sample forecasting and avoids data leakage. 
+
+
+# 9: ARIMA Model
+
+ACF/PACF plots, multiple candidate models, diagnostics filtering, final model selection
+
+ACF & PACF
+```{r}
+acf(sept_ts_diff)
+pacf(sept_ts_diff)
+```
+
+ACF has spike at lag 1,6,11: MA(1) behavior
+PACF has spike at lag 1,3: MA process
+ARIMA(0,1,1) is the best model
+
+Fit candidate models
+```{r}
+model_011 <- arima(sept_ts, order = c(0,1,1))
+model_111 <- arima(sept_ts, order = c(1,1,1))
+model_010 <- arima(sept_ts, order = c(0,1,0))
+model_110 <- arima(sept_ts, order = c(1,1,0))
+```
+
+AIC/BIC of models
+```{r}
+AIC(model_011, model_111, model_010, model_110)
+BIC(model_011, model_111, model_010, model_110)
+```
+
+Diagnostics
+```{r}
+tsdiag(model_011)
+acf(residuals(model_011))
+Box.test(residuals(model_011), lag=10, type="Ljung")
+```
+
+The residuals fluctuate around 0 with no clear trend, most residual autocorrelations are within the bonds, and the Ljung-Box test gives a p-value of 0.1081 which is greater than 0.05. Thus, we fail to reject the null of no autocorrelation, there is no strong evidence that the residuals contain time dependence; this is ideally what we want for a good ARIMA model.
+
+
+# 10: Fit Forecasting Models
+```{r}
+### MODEL 1: LINEAR TREND FORECAST
+
+# Fit linear model on September training data
+linear_forecast_model <- lm(extent ~ year, data = train_data)
+
+# Predict on the test set with 80% prediction intervals
+linear_pred <- predict(
+  linear_forecast_model,
+  newdata = test_data,
+  interval = "prediction",
+  level = 0.80
+)
+
+# Convert predictions to a data frame
+linear_results <- data.frame(
+  year  = test_data$year,
+  actual = test_data$extent,
+  fit   = linear_pred[, "fit"],
+  lwr   = linear_pred[, "lwr"],
+  upr   = linear_pred[, "upr"]
+)
+
+### MODEL 2: QUADRATIC TREND FORECAST
+
+# Fit quadratic model on September training data
+quadratic_forecast_model <- lm(extent ~ year + I(year^2), data = train_data)
+
+# Predict on the test set with 80% prediction intervals
+quadratic_pred <- predict(
+  quadratic_forecast_model,
+  newdata = test_data,
+  interval = "prediction",
+  level = 0.80
+)
+
+# Convert predictions to a data frame
+quadratic_results <- data.frame(
+  year  = test_data$year,
+  actual = test_data$extent,
+  fit   = quadratic_pred[, "fit"],
+  lwr   = quadratic_pred[, "lwr"],
+  upr   = quadratic_pred[, "upr"]
+)
+
+### MODEL 3: ARIMA FORECAST
+
+# Fit ARIMA model automatically on September training data
+arima_model_011 <- arima(train_ts, order = c(0,1,1))
+
+# Print ARIMA model details
+summary(arima_model_011)
+
+# Forecast for the length of the test period with 80% intervals
+arima_fc_update <- forecast(arima_model_011, h = length(test_ts), level = 80)
+
+# Convert ARIMA forecast output to a data frame
+arima_results <- data.frame(
+  year   = test_data$year,
+  actual = as.numeric(test_ts),
+  fit    = as.numeric(arima_fc_update$mean),
+  lwr    = as.numeric(arima_fc_update$lower[, 1]),
+  upr    = as.numeric(arima_fc_update$upper[, 1])
+)
+
+linear_results
+quadratic_results
+arima_results
+```
+
+
+The linear trend forecast assumes sea ice declines at a constant rate each year. It consistently predicts values higher than observed, thus underestimates the rate of decline and overestimates ice. 
+
+The quadratic trend forecast allows for acceleration in decline. The quadratic model declines too aggressively and overestimates acceleration in ice loss. 
+
+The ARIMA model produces stable forecasts but doesn't force strong downward extrapolation. The model assumes future values follow recent dynamics. Overall, it is more conservative and stable. 
+
+
+# 11: Model Evaluation/Selection
+```{r}
+# Create a helper function to calculate RMSE
+rmse_fun <- function(actual, predicted) {
+  sqrt(mean((actual - predicted)^2, na.rm = TRUE))
+}
+
+# Create a helper function to calculate MAE
+mae_fun <- function(actual, predicted) {
+  mean(abs(actual - predicted), na.rm = TRUE)
+}
+
+# Create a helper function to calculate interval coverage
+coverage_fun <- function(actual, lower, upper) {
+  mean(actual >= lower & actual <= upper, na.rm = TRUE)
+}
+
+# Evaluate linear model
+linear_rmse <- rmse_fun(linear_results$actual, linear_results$fit)
+linear_mae  <- mae_fun(linear_results$actual, linear_results$fit)
+linear_cov  <- coverage_fun(linear_results$actual, linear_results$lwr, linear_results$upr)
+
+# Evaluate quadratic model
+quadratic_rmse <- rmse_fun(quadratic_results$actual, quadratic_results$fit)
+quadratic_mae  <- mae_fun(quadratic_results$actual, quadratic_results$fit)
+quadratic_cov  <- coverage_fun(quadratic_results$actual, quadratic_results$lwr, quadratic_results$upr)
+
+# Evaluate ARIMA model
+arima_rmse <- rmse_fun(arima_results$actual, arima_results$fit)
+arima_mae  <- mae_fun(arima_results$actual, arima_results$fit)
+arima_cov  <- coverage_fun(arima_results$actual, arima_results$lwr, arima_results$upr)
+
+# Create a model comparison table
+model_comparison <- data.frame(
+  Model = c("Linear", "Quadratic", "ARIMA"),
+  AIC   = c(AIC(linear_forecast_model), AIC(quadratic_forecast_model), AIC(arima_model_011)),
+  BIC   = c(BIC(linear_forecast_model), BIC(quadratic_forecast_model), BIC(arima_model_011)),
+  RMSE  = c(linear_rmse, quadratic_rmse, arima_rmse),
+  MAE   = c(linear_mae, quadratic_mae, arima_mae),
+  Coverage_80 = c(linear_cov, quadratic_cov, arima_cov)
+)
+
+print(model_comparison)
+best_rmse_model <- model_comparison$Model[which.min(model_comparison$RMSE)]
+best_rmse_model
+```
+The best model is the linear model as the has the lowest RMSE (prediction error), MAE (average error), has the best coverage ratio (0.933 with wide intervals as 0.8 is the targetted; thus they are safe but conservative). The quadratic model has the lowest AIC/BIC but performs the worst on the test data, it fails to generalize. The ARIMA performs similarly and better captures short-term variability, but its predictive accuracy is slightly lower. The linear model offers the best balance of predictive performance and simplicity for forecasting. 
+
+# 12: Refit and Forecast with Best Model
+```{r}
+# Define how many years into the future to forecast
+future_horizon <- 50
+
+# Define near-zero threshold
+near_zero_threshold <- 1
+
+### Final linear model forecast
+final_linear_model <- lm(extent ~ year, data = forecast_data)
+
+# Create future years for forecasting
+future_years <- data.frame(
+  year = seq(max(forecast_data$year) + 1, max(forecast_data$year) + future_horizon, by = 1)
+)
+
+# Forecast future values from final linear model
+final_linear_pred <- predict(
+  final_linear_model,
+  newdata = future_years,
+  interval = "prediction",
+  level = 0.80
+)
+
+# Store linear forecast results
+final_linear_results <- data.frame(
+  year = future_years$year,
+  fit  = final_linear_pred[, "fit"],
+  lwr  = final_linear_pred[, "lwr"],
+  upr  = final_linear_pred[, "upr"]
+)
+final_linear_results
+
+library(forecast)
+
+# Fit final ARIMA model on full September dataset
+final_arima_model <- arima(sept_ts, order = c(0, 1, 1))
+
+# Forecast future values using the ARIMA(0,1,1) model
+final_arima_fc <- forecast(
+  final_arima_model,
+  h = future_horizon,
+  level = 80
+)
+# Create data frame with forecast results
+final_arima_results <- data.frame(
+  year = seq(
+    max(forecast_data$year) + 1,
+    max(forecast_data$year) + future_horizon,
+    by = 1
+  ),
+  fit = as.numeric(final_arima_fc$mean),   # point forecast
+  lwr = as.numeric(final_arima_fc$lower[, 1]),  # lower bound (80%)
+  upr = as.numeric(final_arima_fc$upper[, 1])   # upper bound (80%)
+)
+
+head(final_arima_results)
+```
+A linear model assumes that decline is inevitable while for an ARIMA decline is uncertain. The linear model forecasts a continued steady decline in Arctic sea ice extent while the ARIMA produces a flat forecast. The linear model provides a more realistic long-term projection while the ARIMA is better for short-term forecasting. 
+
+"A consensus has emerged among scientists that the Arctic Ocean is effectively ice free when its sea ice extent falls below 1 million square kilometers (390,000 square miles)." -NSIDC: https://nsidc.org/learn/ask-scientist/what-do-scientists-mean-ice-free-arctic 
+
+# 13: Calculate Near-Zero
+```{r}
+# Find the first year below threshold for linear forecast
+near_zero_year_linear <- final_linear_results %>%
+  filter(fit < near_zero_threshold) %>%
+  slice(1)
+
+print(near_zero_year_linear)
+
+# FOR ARIMA
+near_zero_year_arima <- final_arima_results %>%
+  filter(fit < near_zero_threshold) %>%
+  slice(1)
+
+print(near_zero_year_arima)
+```
+According to the linear model, Arctic sea ice extent falls below the near-zero threshold (1 million sq km) around 2067 with a 0.09 lower bound (no ice) and 1.77 upper bound (slightly above threshold). The ARIMA never predicts the sea ice dropping below 1. 
+
+```{r}
+# Smallest forecasted value for linear
+min(final_linear_results$fit)
+
+# Last forecasted years
+tail(final_linear_results)
+
+# Smallest predicted value for ARIMA
+min(final_arima_results$fit)
+
+# Last forecast values
+tail(final_arima_results)
+```
+
+In the linear model we find the smallest predicted value for ice is at the end of the forecast period in 2075, by the 2070's ice is consistently near-zero. The smallest value for the ARIMA is at the end of the forecast period around 2075 at a value of 4.593, thus it predicts no long-term decline. The linear estimate provides the best and most accurate forecast of future Arctic sea ice conditions. 
+
+ARIMA(0,1,1) is a difference-based forecasting model. In many cases, once it learns the recent pattern in changes, its long-run forecast tends to level off rather than keep dropping linearly forever.
+
+
+# 14: Plot Forecast
+```{r}
+# Plot linear future forecast
+ggplot(final_linear_results, aes(x = year, y = fit)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_hline(yintercept = near_zero_threshold, linetype = "dashed") +
+  labs(
+    title = "Final Linear Forecast of September Arctic Sea Ice Extent",
+    x = "Year",
+    y = "Forecasted Extent (million sq km)"
+  ) +
+  theme_minimal()
+```
+We see that forecasted extent falls below 1 by 2065-2070, precisely at around 2067. The shaded region represents a 80% prediction interval, there are tighter bands in earlier years and wider bands in later years as long-term forecasts are less certain. This shows that near-zero conditions are very likely, even when accounting for uncertainty. 
