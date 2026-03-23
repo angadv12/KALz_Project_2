@@ -10,6 +10,7 @@
 [Project Folder]/
 ├── data/
 │   ├── sea_ice_data_clean.csv
+|   ├── Data Appendix.pdf
 ├── output/
 │   ├── [VARIOUS IMAGES]
 │   ├──  ...
