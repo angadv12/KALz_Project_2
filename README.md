@@ -15,7 +15,15 @@
 │   ├── figure1_extent_over_time.png    # EDA: Sea ice extent over time
 │   ├── figure2_area_over_time.png      # EDA: Sea ice area over time
 │   ├── figure3_average_extent_by_month.png  # EDA: Average extent by month
-│   └── figure4_march_vs_september_extent.png # EDA: March vs September extent
+│   ├── figure3_average_extent_by_month.png  # EDA: Average extent by month
+│   ├── figure4_march_vs_september_extent.png # EDA: March vs September extent
+│   ├── figure5_average_extent_over_time.png # EDA: Average extent over time
+│   ├── figure6_linear_annual_extent.png # Model Output: Linear model extent
+│   ├── figure7_quadratic_annual_extent.png # Model Output: Quadratic model extent
+│   ├── figure8_decade_SD_extent.png # SD Analysis: Volatility analysis
+│   ├── figure9_linear_forecast_extent.png # Model Output: Linear future forecast extent
+│   ├── figure10_model_output.png # Model Output: Model output for linear, quadratic, and ARIMA models
+│   └── figure11_linear_arima_forecast.png # Model Output: Linear and ARIMA near-zero values
 ├── scripts/
 │   ├── MI2_EDA.py                      # Python EDA script (generates figures 1-4)
 │   └── DS4002Project2Code.Rmd          # R Markdown script (full analysis, modeling, and forecasting)
