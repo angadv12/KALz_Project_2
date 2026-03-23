@@ -11,9 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load data
 ```{r}
-sea_ice_data<-read.csv("~kfreese/Desktop/DS 4002/Project 2/Code/sea_ice_data_clean.csv")
+sea_ice_data<-read.csv("../data/sea_ice_data_clean.csv")
 head(sea_ice_data)
-View(sea_ice_data)
 ```
 
 # Load packages
@@ -29,7 +28,7 @@ library(lubridate)  # for working with dates
 # 1: Data Cleaning
 ```{r}
 # Read in the cleaned CSV file
-sea_ice <- read.csv("sea_ice_data_clean.csv", stringsAsFactors = FALSE)
+sea_ice <- read.csv("../data/sea_ice_data_clean.csv", stringsAsFactors = FALSE)
 
 # View the first few rows
 head(sea_ice)
