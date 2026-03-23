@@ -10,6 +10,7 @@
 [Project Folder]/
 ├── data/
 │   ├── sea_ice_data_clean.csv          # Cleaned Arctic sea ice dataset (NSIDC)
+│   └── Data Appendix.pdf          # Data Appendix Document
 ├── output/
 │   ├── DS4002Project2Code.pdf          # Rendered R Markdown report with all analysis outputs
 │   ├── figure1_extent_over_time.png    # EDA: Sea ice extent over time
