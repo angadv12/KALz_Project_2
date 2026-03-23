@@ -12,40 +12,25 @@
 │   ├── sea_ice_data_clean.csv
 |   ├── Data Appendix.pdf
 ├── output/
-│   ├── [VARIOUS IMAGES]
-│   ├──  ...
-│   ├── [VARIOUS IMAGES]
-│   ├── [VARIOUS .CSV FILES]
-│   ├──  ...
+│   ├── figure1_extent_over_time.png
+│   ├── figure2_area_over_time.png
+│   ├── figure3_average_extent_by_month.png
+│   ├── figure4_march_vs_september_extent.png
+│   ├── DS4002Project2Code.pdf
 │   └── [VARIOUS .CSV FILES]
 ├── scripts/
 │   ├── MI2_EDA.py
-├── venv/
-├── .gitignore
+│   ├── DS4002Project2Code.Rmd
 ├── LICENSE.md
-├── README.md
-└── requirements.txt
+└── README.md
 ```
 > [!NOTE]
-> The models and venv/ were git ignored due to size; create them using directions below.
 > You can delete everything in OUTPUT/ and recreate using the scripts if you would like.
 
 ## 3. How to reproduce our results
 > [!NOTE]
-> Ensure python is set up on your system.
-> Run ALL terminal commands from the root directory.
-> Use `python3` instead of `python` if commands aren't running.
-
-### Create a virtual environment and install packages
-Virtual environments isolate your packages to your current environment \
-In your terminal:
-- Create environment: `python -m venv venv`
-- Activate it:
-	- On macOS: `source venv/bin/activate`
-	- On Windows: `source venv/Scripts/activate`
-### Run python scripts
-In your terminal:
-- add here
+> Ensure Rstudio or medium to run R is set up on your system.
+> Run ALL code from the DS4002Project2Code.Rmd.
 
 ## 4. References
 [1]“Arctic sea ice maximum: Crisis as ice melts and risks rise - WWF Arctic,” WWF Arctic, Mar. 28, 2025. https://www.arcticwwf.org/newsroom/features/arctic-sea-ice-maximum-crisis-as-ice-melts-and-risks-rise/
